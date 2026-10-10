@@ -1,0 +1,1 @@
+Scaffold-DbContext "Host=localhost;Database=WfmDb;Username=postgres;Password=password1234" Npgsql.EntityFrameworkCore.PostgreSQL -DataAnnotations -OutputDir DBContexts/Wfm/Models -ContextDir DBContexts/Wfm -Context WfmDbContext -Tables schedules, staffing_requirements, users -Force

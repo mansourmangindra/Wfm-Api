@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/Data/">
+    <Project Path="DataAccess/DataAccess.csproj" />
+  </Folder>
+  <Folder Name="/Library/">
+    <Project Path="Common/Common.csproj" />
+  </Folder>
+  <Folder Name="/WebApi/">
+    <Project Path="Wfm.Api/Wfm.Api.csproj" />
+  </Folder>
+</Solution>

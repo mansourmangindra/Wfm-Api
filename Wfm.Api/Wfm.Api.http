@@ -1,0 +1,6 @@
+@Wfm.Api_HostAddress = http://localhost:5114
+
+GET {{Wfm.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
