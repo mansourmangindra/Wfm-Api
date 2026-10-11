@@ -25,16 +25,24 @@ namespace Wfm.Api.Service
 
         public async Task<(bool Success, string Message, Schedule? Schedule)> CreateScheduleAsync(ScheduleDetails dto)
         {
-            if (dto.StartTime >= dto.EndTime)
+            // Safely parse strings from frontend into native DateOnly and TimeOnly types
+            if (!DateOnly.TryParse(dto.Date, out var parsedDate) ||
+                !TimeOnly.TryParse(dto.StartTime, out var parsedStartTime) ||
+                !TimeOnly.TryParse(dto.EndTime, out var parsedEndTime))
+            {
+                return (false, "Invalid date or time format provided.", null);
+            }
+
+            if (parsedStartTime >= parsedEndTime)
             {
                 return (false, "Start time must be strictly before end time.", null);
             }
 
             var existingSchedules = await _unitOfWork.SchedulesRepository.FindAsync(s =>
                 s.AgentId == dto.AgentId &&
-                s.Date == dto.Date &&
-                s.StartTime < dto.EndTime &&
-                s.EndTime > dto.StartTime &&
+                s.Date == parsedDate &&
+                s.StartTime < parsedEndTime &&
+                s.EndTime > parsedStartTime &&
                 s.Status != "Cancelled"
             );
 
@@ -46,17 +54,17 @@ namespace Wfm.Api.Service
             var schedule = new Schedule
             {
                 AgentId = dto.AgentId,
-                Date = dto.Date,
-                StartTime = dto.StartTime,
-                EndTime = dto.EndTime,
+                Date = parsedDate,
+                StartTime = parsedStartTime,
+                EndTime = parsedEndTime,
                 Status = dto.Status ?? "Scheduled"
             };
 
             await _unitOfWork.SchedulesRepository.AddAsync(schedule);
 
-            string timePeriodKey = dto.StartTime.ToString("HH:mm");
+            string timePeriodKey = parsedStartTime.ToString("HH:mm");
             var staffingReq = await _unitOfWork.StaffingRequirementsRepository.FirstOrDefaultAsync(s =>
-                s.Date == dto.Date && s.TimePeriod == timePeriodKey
+                s.Date == parsedDate && s.TimePeriod == timePeriodKey
             );
 
             if (staffingReq != null)
@@ -98,9 +106,9 @@ namespace Wfm.Api.Service
                 {
                     Id = e.Id,
                     AgentId = e.AgentId,
-                    Date = e.Date,
-                    StartTime = e.StartTime,
-                    EndTime = e.EndTime,
+                    Date = e.Date.ToString(),
+                    StartTime = e.StartTime.ToString(),
+                    EndTime = e.EndTime.ToString(),
                     Status = e.Status,
                     UserDetail = new Users()
                     {
@@ -112,6 +120,58 @@ namespace Wfm.Api.Service
                 predicate: e => e.Id == id);
 
             return schedule;
+        }
+
+        public async Task<(bool Success, string Message, Schedule? Schedule)> UpdateScheduleAsync(int id, ScheduleDetails dto)
+        {
+            var existingSchedule = await _unitOfWork.SchedulesRepository.GetByIdAsync(id);
+            if (existingSchedule == null)
+            {
+                return (false, "Schedule not found.", null);
+            }
+
+            if (!DateOnly.TryParse(dto.Date, out var parsedDate) ||
+                !TimeOnly.TryParse(dto.StartTime, out var parsedStartTime) ||
+                !TimeOnly.TryParse(dto.EndTime, out var parsedEndTime))
+            {
+                return (false, "Invalid date or time format provided.", null);
+            }
+
+            if (parsedStartTime >= parsedEndTime)
+            {
+                return (false, "Start time must be strictly before end time.", null);
+            }
+
+            string oldTimePeriodKey = existingSchedule.StartTime.ToString("HH:mm");
+            var oldStaffingReq = await _unitOfWork.StaffingRequirementsRepository.FirstOrDefaultAsync(s =>
+                s.Date == existingSchedule.Date && s.TimePeriod == oldTimePeriodKey
+            );
+            if (oldStaffingReq != null && oldStaffingReq.ScheduledAgents > 0)
+            {
+                oldStaffingReq.ScheduledAgents -= 1;
+                _unitOfWork.StaffingRequirementsRepository.Update(oldStaffingReq);
+            }
+
+            existingSchedule.AgentId = dto.AgentId;
+            existingSchedule.Date = parsedDate;
+            existingSchedule.StartTime = parsedStartTime;
+            existingSchedule.EndTime = parsedEndTime;
+            existingSchedule.Status = dto.Status ?? "Scheduled";
+
+            _unitOfWork.SchedulesRepository.Update(existingSchedule);
+
+            string newTimePeriodKey = parsedStartTime.ToString("HH:mm");
+            var newStaffingReq = await _unitOfWork.StaffingRequirementsRepository.FirstOrDefaultAsync(s =>
+                s.Date == parsedDate && s.TimePeriod == newTimePeriodKey
+            );
+            if (newStaffingReq != null)
+            {
+                newStaffingReq.ScheduledAgents += 1;
+                _unitOfWork.StaffingRequirementsRepository.Update(newStaffingReq);
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+            return (true, "Schedule updated successfully.", existingSchedule);
         }
     }
 }

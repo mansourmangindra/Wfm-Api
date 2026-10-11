@@ -57,5 +57,16 @@ namespace Wfm.Api.Controllers
 
             return NoContent();
         }
+
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateSchedule(int id, [FromBody] ScheduleDetails dto)
+        {
+            var (success, message, schedule) = await _scheduleService.UpdateScheduleAsync(id, dto);
+            if (!success)
+            {
+                return BadRequest(new { message });
+            }
+            return Ok(schedule);
+        }
     }
 }
